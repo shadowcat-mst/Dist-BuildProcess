@@ -43,8 +43,10 @@ sub test_deps { shift->driver->test_deps(@_) }
 sub install_deps { shift->driver->install_deps(@_) }
 sub runtime_deps { shift->driver->runtime_deps(@_) }
 
-# ???
-#sub phase { shift->driver->phase(@_) }
+sub configure_phase { shift->driver->configure_phase(@_) }
+sub build_phase { shift->driver->build_phase(@_) }
+sub test_phase { shift->driver->test_phase(@_) }
+sub install_phase { shift->driver->install_phase(@_) }
 
 1;
 
