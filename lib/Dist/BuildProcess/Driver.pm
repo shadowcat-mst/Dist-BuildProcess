@@ -33,6 +33,7 @@ sub _configure_args {
 
 sub _target_args {
   my ($self, $target) = @_;
+  Carp::croak("No install target supplied") unless defined($target);
   if (my $ref = ref($target)) {
     if ($ref eq 'ARRAY') {
       return [@$target];
