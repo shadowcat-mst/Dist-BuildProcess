@@ -1,0 +1,60 @@
+#!perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+
+use Dist::BuildProcess::BuildEnv;
+use Dist::BuildProcess;
+
+my $be = Dist::BuildProcess::BuildEnv->new;
+my $bp = Dist::BuildProcess->new(build_env => $be);
+
+my %phase = (map +($_ => 1), qw(configure build test install));
+
+my %deps = (%phase, runtime => 1);
+
+my $usage = "$0 (--deps|--checkdeps|--dry-run|--run) <phase>\n";
+
+sub usage { print STDERR $usage; exit 255; }
+
+usage unless my $cmd = shift @ARGV;
+
+sub deps {
+  my ($phase) = @_;
+  <print> $bp->${\"${phase}_deps"};
+}
+
+sub checkdeps {
+  my ($phase) = @_;
+  <print> $be->unsatified($bp->${\"${phase}_deps"});
+}
+
+sub dry_run {
+  my ($phase) = @_;
+  print $bp->${\"${phase}_phase"}->quoted_command;
+}
+
+sub run {
+  my ($phase) = @_;
+  $bp->${\"${phase}_phase"}->run_command;
+}
+
+my %cmd = (
+  deps => \&deps,
+  missingdeps => \&missingdeps,
+  'dry-run' => \&dry_run,
+  run => \&run,
+);
+
+if ($cmd =~ s/^--/) {
+  if (my $code = $cmd{$cmd}) {
+    $code->(@ARGV);
+  } else {
+    usage;
+  }
+} else {
+  run(@ARGV);
+}
+
+exit 0;

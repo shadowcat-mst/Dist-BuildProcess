@@ -1,0 +1,82 @@
+#!perl
+
+use strict;
+use warnings;
+use File::Fetch;
+use IPC::System::Simple;
+use Path::Tiny;
+use CPAN::Common::Index::MetaDB;
+use File::chdir;
+use Dist::BuildProcess;
+use Dist::BuildEnv;
+use 5.010;
+
+my $nano_dir = path('.nanocpan');
+my $cpan_idx = CPAN::Common::Index::MetaDB->new;
+my $target_base = path('local');
+my $target_lib = $target_base->child('lib/perl5');
+
+my $build_env = Dist::BuildEnv->new(
+  extra_inc_dirs => [ $target_lib ],
+);
+
+sub dist_url_for {
+  my ($pkg) = @_;
+  my ($res) = $cpan_idx->search_packages({ package => $pkg });
+  die "No dist for ${pkg}" unless my $uri = $res->{uri};
+  die "Confused by ${uri}" unless $uri =~ m{^cpan:///distfile/(.)(.)(.*)$};
+  my $cpan_path = "$1/$1$2/$1$2$3";
+  return "http://cpan.org/authors/id/${cpan_path}";
+}
+
+sub fetch_into {
+  my ($url, $into) = @_;
+  my $ff = File::Fetch->new(uri => $url);
+  die File::Fetch->error unless $ff;
+  $ff->fetch(to => $into) || die $ff->error;
+  return;
+}
+
+sub extract_file {
+  my ($file_path) = @_;
+  local $CWD = $file_path->parent;
+  if ($file_path =~ /\.zip/) {
+    system(unzip => $file_path->basename);
+  } else {
+    system(tar => -xf => $file_path->basename);
+  }
+}
+
+sub extract_dist_for {
+  my ($pkg) = @_;
+  my $dist_url = dist_url_for($pkg);
+  my $dist_basename = path($dist_url)->basename;
+  $_->mkpath for my $extract_dir = $nano_dir->child($dist_basename);
+  fetch_into($dist_url, $extract_dir);
+  extract_file($extract_dir->child($dist_basename));
+  my @dirs = grep -d $_, $extract_dir->children;
+  die "WHAT" unless @dirs == 1;
+  return $dirs[0];
+}
+
+sub install_for {
+  my ($pkg) = @_;
+  my $unpack_dir = extract_dist_for($pkg);
+  my $bp = Dist::BuildProcess->new(
+    build_env => $build_env,
+    build_dir => $unpack_dir,
+    install_to => $target_base,
+  );
+  foreach my $phase_name (qw(configure build test install)) {
+    my $phase_reqs = $bp->${\"${phase_name}_deps"};
+    foreach my $pkg ($build_env->unsatisfied($phase_reqs)) {
+      install_for($pkg);
+    }
+    $bp->${\"${phase_name}_phase"}->run_command;
+  }
+}
+
+$nano_dir->remove_tree;
+$nano_dir->mkpath;
+
+say extract_dist_for($ARGV[0]);
