@@ -26,22 +26,19 @@ sub inc_dirs {
 
 lazy perl_binary => sub { $^X };
 
-lazy make_binary => sub { which('make') };
+lazy make_binary => sub { which('gmake') || which('make') };
 
 sub unsatisfied {
   my ($self, $reqs) = @_;
   grep {
-    !$self->satisfies($_, $reqs->requirements_for_module($_))
+    !$self->satisfies($_, $reqs)
   } $reqs->required_modules;
 }
 
 sub satisfies {
-  my ($self, $mod, $want_ver) = @_;
+  my ($self, $mod, $reqs) = @_;
   my $meta = Module::Metadata->new_from_module($mod, inc => $self->inc_dirs);
   return 0 unless $meta;
-  $want_ver = '0' unless defined($want_ver) && length($want_ver);
-  my $reqs = CPAN::Meta::Requirements->new;
-  $reqs->add_string_requirement($mod, $want_ver);
   return $reqs->accepts_module($mod, $meta->version);
 }
 

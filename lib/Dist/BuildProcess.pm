@@ -14,7 +14,8 @@ use Mu::Tiny;
 ro 'build_env';
 ro 'build_dir';
 ro 'install_target';
-lazy dest_dir => sub { undef };
+lazy destdir => sub { undef };
+lazy interactive => sub { 0 };
 
 lazy driver_class => sub {
   my ($self) = @_;

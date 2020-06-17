@@ -21,7 +21,7 @@ sub configure_phase {
       ($self->perl_binary,
        $self->_configure_file,
        $bp->install_target//(),
-       (map +($_ ? [dest_dir => $_] : ()), $bp->dest_dir),
+       (map +($_ ? [destdir => $_] : ()), $bp->destdir),
        @_,
       )
   );
