@@ -8,9 +8,6 @@ sub _configure_file { 'Makefile.PL' }
 
 sub _phase_command { $_[0]->make_binary }
 
-sub _format_args {
-  my ($self, @argpairs) = @_;
-  map uc($_->[0]).'='.$_->[1], @argpairs;
-}
+sub _format_argpair { uc($_[1]).'='.$_[2] }
 
 1;

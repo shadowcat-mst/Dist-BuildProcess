@@ -14,47 +14,29 @@ sub perl_binary { shift->build_env->perl_binary }
 sub make_binary { shift->build_env->make_binary }
 
 sub configure_phase {
-  my ($self) = @_;
+  my $self = shift;
+  my $bp = $self->build_process;
   $self->_command_phase(
     configure =>
       ($self->perl_binary,
        $self->_configure_file,
-       $self->_format_args($self->_configure_args),
+       $bp->install_target//(),
+       (map +($_ ? [dest_dir => $_] : ()), $bp->dest_dir),
+       @_,
       )
   );
 }
 
-sub _configure_args {
-  my ($self) = @_;
-  my $bp = $self->build_process;
-  my @dest_args = map +($_ ? [dest_dir => $_] : ()), $bp->dest_dir;
-  return ($self->_target_args($bp->install_target), @dest_args);
-}
-
-sub _target_args {
-  my ($self, $target) = @_;
-  Carp::croak("No install target supplied") unless defined($target);
-  if (my $ref = ref($target)) {
-    if ($ref eq 'ARRAY') {
-      return [@$target];
-    }
-    if ($ref eq 'SCALAR') {
-      return [installdirs => $$target];
-    }
-    Carp::croak "Unknown install_target reftype for ${target}";
-  }
-  return [install_base => $target];
-}
-
-sub build_phase { shift->_phase('build') }
-sub test_phase { shift->_phase('test', 'test') }
-sub install_phase { shift->_phase('install', 'install') }
+sub build_phase { shift->_phase('build', undef, @_) }
+sub test_phase { shift->_phase('test', 'test', @_) }
+sub install_phase { shift->_phase('install', 'install', @_) }
 
 sub _phase {
-  my ($self, $name, $subcommand) = @_;
+  my ($self, $name, $subcommand, @args) = @_;
   $self->_command_phase(
     $name =>
-      ($self->_phase_command, $subcommand//())
+      ($self->_phase_command, $subcommand//()),
+      @args,
   );
 }
 
@@ -62,16 +44,17 @@ sub _command_phase {
   my ($self, $name, @command) = @_;
   Dist::BuildProcess::CommandPhase->new(
     name => $name,
-    command => \@command,
+    command => [ map { ref() ? $self->_format_argpair(@$_) : $_ } @command ],
     build_process => $self->build_process,
   );
 }
 
-sub configure_deps { shift->_deps_for('configure', {sloppy => 1}) }
-sub build_deps { shift->_deps_for(qw(configure runtime build),@_) }
-sub test_deps { shift->_deps_for(qw(configure runtime build test),@_) }
-sub install_deps { shift->_deps_for(qw(configure runtime build),@_) }
-sub runtime_deps { shift->deps_for('runtime',@_) }
+sub develop_deps { shift->_deps_for('develop', { sloppy => 1, @_ }) }
+sub configure_deps { shift->_deps_for('configure', { sloppy => 1, @_ }) }
+sub build_deps { shift->_deps_for(qw(configure runtime build), {@_}) }
+sub test_deps { shift->_deps_for(qw(configure runtime build test), {@_}) }
+sub install_deps { shift->_deps_for(qw(configure runtime build), {@_}) }
+sub runtime_deps { shift->_deps_for('runtime', {@_}) }
 
 sub _metafile {
   my ($self, $name) = @_;
@@ -81,10 +64,7 @@ sub _metafile {
 
 sub _deps_for {
   my ($self, @phases) = @_;
-  my $opt = {};
-  while (ref($phases[-1]) eq 'HASH') {
-    $opt = { %$opt, %{pop @phases} };
-  }
+  my $opt = pop @phases;
   local $CWD = $self->build_process->build_dir;
   my $file = $self->_metafile('MYMETA');
   unless ($file) {

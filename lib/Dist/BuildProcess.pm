@@ -37,6 +37,7 @@ lazy driver => sub {
   return $driver_class->new(%$self);
 };
 
+sub develop_deps { shift->driver->develop_deps(@_) }
 sub configure_deps { shift->driver->configure_deps(@_) }
 sub build_deps { shift->driver->build_deps(@_) }
 sub test_deps { shift->driver->test_deps(@_) }
