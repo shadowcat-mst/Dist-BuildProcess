@@ -31,7 +31,12 @@ lazy make_binary => sub { which('gmake') || which('make') };
 sub unsatisfied {
   my ($self, $reqs) = @_;
   grep {
-    !$self->satisfies($_, $reqs)
+    if ($_ eq 'perl') {
+      my $ver = capturex($self->perl_binary, '-e', 'print $]');
+      !($ver >= $reqs->requirements_for_module('perl'))
+    } else {
+      !$self->satisfies($_, $reqs)
+    }
   } $reqs->required_modules;
 }
 

@@ -74,7 +74,8 @@ sub _deps_for {
   }
   my $meta = CPAN::Meta->load_file($file);
   my $types = $opt->{types}||['requires']; # BuildPolicy ?
-  return $meta->effective_prereqs->requirements_for(\@phases,$types);
+  return $meta->effective_prereqs
+              ->merged_requirements(\@phases,$types);
 }
 
 1;

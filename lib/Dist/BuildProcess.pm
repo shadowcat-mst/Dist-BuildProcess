@@ -35,7 +35,7 @@ lazy driver => sub {
     $type;
   };
   require join('/', split '::', $driver_class).".pm";
-  return $driver_class->new(%$self);
+  return $driver_class->new(build_process => $self, %$self);
 };
 
 sub develop_deps { shift->driver->develop_deps(@_) }
