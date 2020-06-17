@@ -1,0 +1,101 @@
+#!perl
+
+use strict;
+use warnings;
+use feature 'say';
+use Dist::BuildProcess;
+use Dist::BuildProcess::BuildEnv;
+use Cwd qw(getcwd);
+use Getopt::Long qw(:config require_order);
+
+sub script_options {
+  my %opts = (
+    inst => {},
+    destdir => undef,
+    build_dir => getcwd(),
+    perl => undef,
+    make => undef,
+  );
+
+  GetOptions(
+    "install_base=s" => \$opts{inst}{install_base},
+    "installdirs=s" => \$opts{inst}{installdirs},
+    "prefix=s" => \$opts{inst}{prefix},
+    "install_default=s" => \$opts{inst}{install_default},
+    "destdir=s" => \$opts{destdir},
+    "build_dir=s" => \$opts{build_dir},
+    "keepenv" => \$opts{keepenv},
+    "perl=s" => \$opts{perl},
+    "make=s" => \$opts{make},
+    "n|dry-run|dry_run" => \$opts{dry_run},
+    "interactive" => \$opts{interactive},
+  ) or die "NOPE";
+
+  delete @{$opts{inst}}{grep !defined($opts{inst}{$_}), keys %{$opts{inst}}};
+
+  return \%opts;
+}
+
+sub cmd_phase {
+  my ($opts, $phase_name) = @_;
+  my %inst = %{delete $opts->{inst}};
+  unless (1 == keys %inst) {
+    die "Must specify exactly one install target";
+  }
+  $opts->{install_target} = ($inst{install_default} ? undef : [ %inst ]);
+  GetOptions(
+    "n|dry-run|dry_run" => \$opts->{dry_run},
+  ) or die "NOPE";
+  my $bp = Dist::BuildProcess->new($opts);
+  my $phase = $bp->${\"${phase_name}_phase"}(@ARGV);
+  if ($opts->{dry_run}) {
+    say $phase->quoted_command;
+    return 0;
+  }
+  $phase->run_command;
+  return 0;
+}
+
+sub cmd_deps {
+  my ($opts, $phase_name) = @_;
+  $opts->{install_target} = undef;
+  my ($missing, $sloppy);
+  GetOptions(
+    "missing" => \$missing,
+    "sloppy" => \$sloppy,
+  ) or die "NOPE";
+  my $bp = Dist::BuildProcess->new($opts);
+  my %args;
+  $args{sloppy} = 1 if $sloppy;
+  my $reqs = $bp->${\"${phase_name}_deps"}(%args);
+  my @modules = ($missing
+    ? $opts->{build_env}->unsatisfied($reqs)
+    : $reqs->required_modules
+  );
+  foreach my $mod (@modules) {
+    say "${mod} ".$reqs->requirements_for_module($mod);
+  }
+  return 0;
+}
+
+sub main {
+  my $opts = script_options();
+  die "No command given" unless my $cmd_name = shift @ARGV;
+  my %cmd = (
+    (map +($_ => [ \&cmd_phase, $_ ]),
+      qw(configure build test install)),
+    (map +("${_}deps" => [ \&cmd_deps, $_ ]),
+       qw(configure build test install develop runtime)),
+    #rundeps => [ \&cmd_deps, 'runtime' ],
+    #run => [ \&cmd_run ],
+  );
+  die "Invalid command ${cmd_name}" unless my $cmd_spec = $cmd{$cmd_name};
+  my ($sub, @args) = @$cmd_spec;
+  $opts->{build_env} = Dist::BuildProcess::BuildEnv->new(
+    (map +("${_}_binary" => $opts->{$_}),
+      grep defined($opts->{$_}), qw(perl make)),
+  );
+  return $sub->($opts, @args);
+}
+
+exit main() unless caller;

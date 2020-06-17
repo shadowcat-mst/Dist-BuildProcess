@@ -1,0 +1,86 @@
+#!perl
+
+use strict;
+use warnings;
+use File::Fetch;
+use IPC::System::Simple;
+use Cwd qw(getcwd);
+use File::Basename qw(basename);
+use CPAN::Common::Index::MetaDB;
+use File::chdir;
+use Getopt::Long qw(:config require_order);
+use 5.010;
+
+sub dist_url_for {
+  my ($for) = @_;
+  state $cpan_idx = CPAN::Common::Index::MetaDB->new;
+  my ($res) = $cpan_idx->search_packages($for);
+  die "No dist for ".$for->{package} unless my $uri = $res->{uri};
+  die "Confused by ${uri}" unless $uri =~ m{^cpan:///distfile/(.)(.)(.*)$};
+  my $cpan_path = "$1/$1$2/$1$2$3";
+  return "http://cpan.org/authors/id/${cpan_path}";
+}
+
+sub fetch_into {
+  my ($url, $into) = @_;
+  my $ff = File::Fetch->new(uri => $url);
+  die File::Fetch->error unless $ff;
+  $ff->fetch(to => $into) || die $ff->error;
+  return 0;
+}
+
+sub extract_file {
+  my ($base, $file) = @_;
+  local $CWD = $base;
+  if ($file =~ /\.zip/) {
+    system(unzip => $file);
+  } else {
+    system(tar => -xf => $file);
+  }
+}
+
+sub script_options {
+  my %opts = (
+    into => getcwd(),
+    extract => undef,
+    package => undef,
+    version => undef,
+    lookup_only => undef,
+  );
+  GetOptions(
+    "into=s" => \$opts{into},
+    "package=s" => \$opts{package},
+    "version=s" => \$opts{version},
+    "extract" => \$opts{extract},
+    "lookup_only" => \$opts{lookup_only},
+  );
+  delete @opts{grep !defined($opts{$_}), keys %opts};
+  return \%opts;
+}
+
+sub main {
+  my $opts = script_options();
+  if (!$opts->{package}) {
+    die "No package" unless my $spec = shift @ARGV;
+    if ($spec =~ s/\@(.*)$//) {
+      $opts->{version} = $1;
+    }
+    $opts->{package} = $spec;
+  }
+  my $url = do {
+    my %lookup = (package => $opts->{package});
+    $lookup{version} = $opts->{version} if $opts->{version};
+    dist_url_for(\%lookup);
+  };
+  if ($opts->{lookup_only}) {
+    say $url;
+    return 0;
+  }
+  my $ret = fetch_into($url, $opts->{into});
+  if ($opts->{extract}) {
+    $ret = extract_file($opts->{into}, basename($url));
+  }
+  return $ret;
+}
+
+exit main() unless caller;
