@@ -16,6 +16,7 @@ ro 'build_dir';
 ro 'install_target';
 lazy destdir => sub { undef };
 lazy interactive => sub { 0 };
+lazy legacy_dot_in_inc => sub { 0 };
 
 lazy driver_class => sub {
   my ($self) = @_;

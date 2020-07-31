@@ -19,11 +19,22 @@ sub quoted_command {
 
 sub run_command {
   my ($self) = @_;
-  my $be = $self->build_env;
+  my ($bp, $be) = ($self->build_process, $self->build_env);
+
   local %ENV = %{$be->env_vars};
+
   $ENV{PERL5LIB} = join(':', $ENV{PERL5LIB}//(), @{$be->extra_inc_dirs});
-  $ENV{PERL_MM_USE_DEFAULT} = 1 unless $self->build_process->interactive;
-  local $CWD = $self->build_process->build_dir;
+
+  unless ($bp->interactive) {
+    $ENV{PERL_MM_USE_DEFAULT} = 1;
+  }
+
+  if ($bp->legacy_dot_in_inc) {
+    $ENV{PERL_USE_UNSAFE_INC} = 1;
+  }
+
+  local $CWD = $bp->build_dir;
+
   systemx(@{$self->command});
 }
 

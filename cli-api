@@ -1,0 +1,17 @@
+
+cpb --deps configure # prints configure deps
+cpb --deps --missing configure # prints missing configure deps
+cpb --dry-run configure # show command to run
+cpb --run configure # runs configure
+
+
+cpanbuild configuredeps
+cpanbuild configure
+cpanbuild builddeps
+cpanbuild build
+cpanbuild testdeps
+cpanbuild test
+cpanbuild install
+
+cpanbuild rundeps
+cpanbuild run
